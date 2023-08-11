@@ -21,3 +21,8 @@
     A strobe like effect which picks random colours for each block (10) leds
 - Test
     The test effect (Should be set with -t instead)
+
+## Dbus Control
+Everything the cli can control can be controlled using dbus
+
+An example command to set the effect to the Rainbow effect: `busctl --user call dev.rugmj.LedController /dev/rugmj/LedController dev.rugmj.LedController1 SetEffect 0`
