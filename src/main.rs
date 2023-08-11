@@ -28,8 +28,6 @@ type LedData = Vec<(u8, u8, u8)>;
     long_about = "A program to control my led strip"
 )]
 struct Args {
-    #[arg(short = 'c', long = "cycle", help = "Cycles clients")]
-    cycle: bool,
     #[arg(
         short = 's',
         long = "set-effect",
