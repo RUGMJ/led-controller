@@ -57,14 +57,16 @@ pub enum ClientType {
     TestEffect,
     RainbowEffect,
     RandomEffect,
+    CodingEffect,
 }
 
 impl From<&str> for ClientType {
     fn from(value: &str) -> Self {
         match value.to_lowercase().as_str() {
-            "rainbow" => Self::RainbowEffect,
-            "random" => Self::RandomEffect,
-            "test" => Self::TestEffect,
+            "rainboweffect" => Self::RainbowEffect,
+            "randomeffect" => Self::RandomEffect,
+            "testeffect" => Self::TestEffect,
+            "codingeffect" => Self::CodingEffect,
             misc => panic!("Unknown client type: {misc}"),
         }
     }
@@ -82,7 +84,7 @@ macro_rules! into_effect {
 
 impl ClientType {
     fn into_effect(self) -> Box<dyn Effect + Send + Sync> {
-        into_effect![self, RainbowEffect, RandomEffect, TestEffect]
+        into_effect![self, RainbowEffect, RandomEffect, TestEffect, CodingEffect]
     }
 }
 
@@ -138,14 +140,14 @@ async fn main() {
         daemonise = false;
     }
 
-    if daemonise {
+    if cfg!(debug_assertions) {
+        tokio::spawn(daemon(args.clone())).await.unwrap();
+    } else if daemonise {
         use nix::unistd::{fork, ForkResult};
 
         unsafe {
             match fork() {
-                Ok(ForkResult::Child) => {
-                    daemon(args.clone()).await.unwrap();
-                }
+                Ok(ForkResult::Child) => daemon(args.clone()).await,
 
                 Ok(ForkResult::Parent { child }) => {
                     println!("Deamon spawned with pid: {}", child)

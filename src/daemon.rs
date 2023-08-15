@@ -13,7 +13,20 @@ use crate::{check_and_mark_running, Args, Effect, LedData, LED_SIZE, UNIVERSE};
 use sacn_unofficial::{packet::ACN_SDT_MULTICAST_PORT, source::SacnSource};
 use zbus::{dbus_interface, ConnectionBuilder};
 
-pub(crate) async fn daemon(args: Args) -> Result<(), Box<dyn Error>> {
+async fn create_dbus_connection(
+    effect: &Arc<Mutex<Box<dyn Effect + Send + Sync>>>,
+) -> Result<zbus::Connection, Box<dyn Error>> {
+    let bus_interface = BusInterface {
+        effect: Arc::clone(effect),
+    };
+    Ok(ConnectionBuilder::session()?
+        .name("dev.rugmj.LedController")?
+        .serve_at("/dev/rugmj/LedController", bus_interface)?
+        .build()
+        .await?)
+}
+
+pub(crate) async fn daemon(args: Args) {
     let file_lock = check_and_mark_running();
 
     if file_lock.is_err() {
@@ -24,15 +37,7 @@ pub(crate) async fn daemon(args: Args) -> Result<(), Box<dyn Error>> {
     let effect = create_effect(&args);
     let effect = Arc::new(Mutex::new(effect));
 
-    let bus_interface = BusInterface {
-        effect: Arc::clone(&effect),
-    };
-
-    let _conn = ConnectionBuilder::session()?
-        .name("dev.rugmj.LedController")?
-        .serve_at("/dev/rugmj/LedController", bus_interface)?
-        .build()
-        .await?;
+    let _conn = create_dbus_connection(&effect).await.unwrap();
 
     let (mut src, dst_ip) = setup_sacn();
     loop {
