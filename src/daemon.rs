@@ -4,17 +4,16 @@ use std::{
     process,
     sync::{Arc, Mutex},
     thread,
-    time::Duration,
 };
 
-use crate::effects::test::TestEffect;
 use crate::ClientType;
 use crate::{check_and_mark_running, Args, Effect, LedData, LED_SIZE, UNIVERSE};
+use crate::{effects::test::TestEffect, Color};
 use sacn_unofficial::{packet::ACN_SDT_MULTICAST_PORT, source::SacnSource};
 use zbus::{dbus_interface, ConnectionBuilder};
 
 async fn create_dbus_connection(
-    effect: &Arc<Mutex<Box<dyn Effect + Send + Sync>>>,
+    effect: &Arc<Mutex<Box<dyn Effect + Send>>>,
 ) -> Result<zbus::Connection, Box<dyn Error>> {
     let bus_interface = BusInterface {
         effect: Arc::clone(effect),
@@ -26,7 +25,7 @@ async fn create_dbus_connection(
         .await?)
 }
 
-pub(crate) async fn daemon(args: Args) {
+pub async fn daemon(args: Args) {
     let file_lock = check_and_mark_running();
 
     if file_lock.is_err() {
@@ -41,21 +40,27 @@ pub(crate) async fn daemon(args: Args) {
 
     let (mut src, dst_ip) = setup_sacn();
     loop {
-        let data = {
+        let (config, data) = {
             let mut effect = effect.lock().unwrap();
-            effect.update().unwrap_or([(0, 0, 0); LED_SIZE].to_vec())
+            (
+                effect.get_config(),
+                effect.update().unwrap_or(Some([Color::BLACK; LED_SIZE])),
+            )
         };
 
-        if let Err(err) = send_data(&mut src, dst_ip, &data) {
-            println!("Error: {:?}", err);
+        if let Some(data) = data {
+            if let Err(err) = send_data(&mut src, dst_ip, &data) {
+                println!("Error: {:?}", err);
+            }
         }
-        thread::sleep(Duration::from_millis(10))
+
+        thread::sleep(config.delay);
     }
 }
 
-fn create_effect(args: &Args) -> Box<dyn Effect + Send + Sync> {
+fn create_effect(args: &Args) -> Box<dyn Effect + Send> {
     match &args.effect {
-        Some(client_type) => client_type.clone().into_effect(),
+        Some(client_type) => (*client_type).into_effect(),
         None => {
             if args.test {
                 Box::new(TestEffect::new())
@@ -78,7 +83,7 @@ fn send_data(src: &mut SacnSource, dst_ip: SocketAddr, data: &LedData) -> Result
     }
     let data = data
         .iter()
-        .flat_map(|&(r, g, b)| vec![b, r, g])
+        .flat_map(|&c| vec![c.2, c.0, c.1])
         .collect::<Vec<u8>>();
     let data_slice = data.as_slice();
 
@@ -111,7 +116,7 @@ fn setup_sacn() -> (SacnSource, SocketAddr) {
 }
 
 struct BusInterface {
-    effect: Arc<Mutex<Box<dyn Effect + Send + Sync>>>,
+    effect: Arc<Mutex<Box<dyn Effect + Send>>>,
 }
 
 #[dbus_interface(name = "dev.rugmj.LedController1")]

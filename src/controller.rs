@@ -12,12 +12,13 @@ trait Controller {
     async fn end_daemon(&self) -> zbus::Result<()>;
 }
 
-pub(crate) async fn controller(args: Args) -> zbus::Result<()> {
+pub async fn controller(args: Args) -> zbus::Result<()> {
     let connection = Connection::session().await?;
 
     let proxy = ControllerProxy::new(&connection).await?;
 
     if let Some(client_type) = args.effect {
+        println!("Setting client type to {:?}", client_type);
         proxy.set_effect(client_type).await?;
     }
 

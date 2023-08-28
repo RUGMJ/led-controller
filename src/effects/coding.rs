@@ -2,13 +2,14 @@ use std::{fs, iter, path::Path};
 
 use neovim_lib::{Neovim, NeovimApi, Session};
 
-use crate::{Effect, LED_SIZE};
+use crate::{helpers::vec_to_led_data, Color, Effect, LED_SIZE};
 
-pub(crate) struct CodingEffect {
+pub struct CodingEffect {
     nvim: Neovim,
+    last_mode: Option<Mode>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 enum Mode {
     Normal,
     Insert,
@@ -40,11 +41,14 @@ impl Effect for CodingEffect {
         let mut nvim = Neovim::new(session.unwrap());
         nvim.session.start_event_loop();
 
-        CodingEffect { nvim }
+        CodingEffect {
+            nvim,
+            last_mode: None,
+        }
     }
 
-    fn update(&mut self) -> Result<crate::LedData, Box<dyn std::error::Error>> {
-        let mode = self.nvim.get_mode().unwrap();
+    fn update(&mut self) -> anyhow::Result<Option<crate::LedData>> {
+        let mode = self.nvim.get_mode()?;
         let mode = mode[0].1.as_str().unwrap();
 
         let mode = match mode {
@@ -56,13 +60,23 @@ impl Effect for CodingEffect {
             _ => Mode::Command,
         };
 
+        let last_mode = &self.last_mode;
+
+        if last_mode.as_ref().is_some_and(|l| l == &mode) {
+            return Ok(None);
+        }
+
+        self.last_mode = Some(mode.clone());
+
         let color = match mode {
-            Mode::Normal => (0, 0, 255),
-            Mode::Insert => (0, 255, 0),
-            Mode::Visual => (100, 0, 255),
-            Mode::Command => (255, 0, 0),
+            Mode::Normal => Color::BLUE,
+            Mode::Insert => Color::GREEN,
+            Mode::Visual => Color::PURPLE,
+            Mode::Command => Color::ORANGE,
         };
 
-        Ok(iter::repeat(color).take(LED_SIZE).collect())
+        Ok(Some(vec_to_led_data(
+            iter::repeat(color).take(LED_SIZE).collect(),
+        )))
     }
 }
