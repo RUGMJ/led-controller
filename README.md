@@ -19,6 +19,10 @@
     A simple rainbow effect using sine
 - Random
     A strobe like effect which picks random colours for each block (10) leds
+- Music Visualiser
+   Maps fft to brightness, picks a random colour whenever fft data is all 0
+- Codinig Effect
+    Gets the current mode in the active neovim instance
 - Test
     The test effect (Should be set with -t instead)
 
